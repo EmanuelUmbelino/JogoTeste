@@ -10,7 +10,7 @@ public class PlayerController : MonoBehaviour
     {
         public float jumpForce = 9;
 
-        private bool _isGrounded;
+        private bool _inFloor;
         public Transform groundCheck;
         public float checkRadius = 0.3f;
         public LayerMask whatIsGround;
@@ -22,23 +22,26 @@ public class PlayerController : MonoBehaviour
         public int extraJumpsValue = 1;
         private bool isJumping;
 
-        public void JumpUpdate(Rigidbody2D rb, Animator anim)
+        public void JumpUpdate(Rigidbody2D rb, Animator anim, bool isSwimming)
         {
-            _isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, whatIsGround);
+            _inFloor = Physics2D.OverlapCircle(groundCheck.position, checkRadius, whatIsGround);
 
-            if (_isGrounded == true) {
+            if (_inFloor == true || isSwimming) {
                 extraJumps = extraJumpsValue;
-                anim.SetBool("isJumping", false);
-            } else {
-                anim.SetBool("isJumping", true);
+                if (!isSwimming) {
+                    anim.SetBool("isJumping", false);
+                }
             }
 
             if (Input.GetKeyDown(KeyCode.Space) && extraJumps > 0) {
-                anim.SetTrigger("takeOf");
+                if (_inFloor == false && !isSwimming) {
+                    anim.SetTrigger("anotherJump");
+                    extraJumps--;
+                }
                 isJumping = true;
+                anim.SetBool("isJumping", true);
                 jumpTimeCounter = jumpTime;
                 rb.velocity = Vector2.up * jumpForce;
-                extraJumps--;
             }
 
             if (Input.GetKeyUp(KeyCode.Space)) {
@@ -53,9 +56,9 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        public bool isGrounded()
+        public bool inFloor()
         {
-            return _isGrounded;
+            return _inFloor;
         }
     }
     public JumpProperties jumpProperties;
@@ -65,17 +68,19 @@ public class PlayerController : MonoBehaviour
     private float inputVertical;
 
     private Rigidbody2D rb;
-    private BoxCollider2D col;
+    private CapsuleCollider2D col;
     private Animator anim;
 
     private bool facingRight = true;
 
-    private bool isDown = false;
+    private bool crounching = false;
     private float colSize;
     private float colOffset;
 
     public LayerMask whatIsLadder;
+    public LayerMask whatIsWater;
     private bool isClimbing;
+    private bool isSwimming;
 
     public float defaultGravityScale = 5;
 
@@ -83,26 +88,32 @@ public class PlayerController : MonoBehaviour
     {
         anim = GetComponent<Animator>();    
         rb = GetComponent<Rigidbody2D>();
-        col = GetComponent<BoxCollider2D>();
+        col = GetComponent<CapsuleCollider2D>();
         colSize = col.size.y;
         colOffset = col.offset.y;
     }
 
     void FixedUpdate()
     {
-        if (jumpProperties.isGrounded() && isDown) {
+
+        if (jumpProperties.inFloor() && crounching) {
             rb.velocity = new Vector2(0, rb.velocity.y);
         } else {
-            rb.velocity = new Vector2(inputHorizontal * speed, rb.velocity.y);
+            if (isSwimming) {
+                rb.velocity = new Vector2(inputHorizontal * (speed / 2), rb.velocity.y);
+            } else {
+                rb.velocity = new Vector2(inputHorizontal * speed, rb.velocity.y);
+            }
         }
 
         if (isClimbing) {
-            inputVertical = Input.GetAxisRaw("Vertical");
             rb.velocity = new Vector2(rb.velocity.x, inputVertical * speed);
             rb.gravityScale = 0;
         } else {
             rb.gravityScale = defaultGravityScale;
         }
+        anim.SetFloat("ySpeed", rb.velocity.y);
+        anim.SetBool("inFloor", jumpProperties.inFloor());
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
@@ -110,6 +121,11 @@ public class PlayerController : MonoBehaviour
         if (((1 << collision.gameObject.layer) & whatIsLadder) != 0)
         {
             isClimbing = true;
+        } else if (((1 << collision.gameObject.layer) & whatIsWater) != 0)
+        {
+            isSwimming = true;
+            anim.SetTrigger("waterEnter");
+            anim.SetBool("inWater", isSwimming);
         }
     }
 
@@ -119,13 +135,19 @@ public class PlayerController : MonoBehaviour
         {
             isClimbing = false;
         }
+        else if (((1 << collision.gameObject.layer) & whatIsWater) != 0)
+        {
+            isSwimming = false;
+            anim.SetBool("inWater", isSwimming);
+        }
     }
 
     private void Update()
     {
         inputHorizontal = Input.GetAxisRaw("Horizontal");
-        
-        jumpProperties.JumpUpdate(rb, anim);
+        inputVertical = Input.GetAxisRaw("Vertical");
+
+        jumpProperties.JumpUpdate(rb, anim, isSwimming);
 
         anim.SetBool("isRunning", inputHorizontal != 0);
 
@@ -133,18 +155,23 @@ public class PlayerController : MonoBehaviour
             Flip();
         }
 
-        if (Input.GetKeyDown(KeyCode.DownArrow)) {
-            isDown = true;
+        if (Input.GetKeyDown(KeyCode.DownArrow) && jumpProperties.inFloor()) {
+            crounching = true;
             col.size = new Vector2(col.size.x, colSize / 2);
             col.offset = new Vector2(col.offset.x, colOffset * 2);
-            anim.SetBool("isDown", isDown);
+            anim.SetBool("crounching", crounching);
+        }
+
+        if (Input.GetKey(KeyCode.DownArrow) && isSwimming)
+        {
+            rb.velocity = new Vector2(rb.velocity.x, inputVertical * speed / 2);
         }
 
         if (Input.GetKeyUp(KeyCode.DownArrow)) {
-            isDown = false;
+            crounching = false;
             col.size = new Vector2(col.size.x, colSize);
             col.offset = new Vector2(col.offset.x, colOffset);
-            anim.SetBool("isDown", isDown);
+            anim.SetBool("crounching", crounching);
         }
     }
 
