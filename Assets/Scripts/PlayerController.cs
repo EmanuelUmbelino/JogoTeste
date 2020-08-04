@@ -117,9 +117,6 @@ public class PlayerController : MonoBehaviour
 
         if (inFloor || isSwimming || isSlidingOnWall) {
             extraJumps = extraJumpsValue;
-            if (!isSwimming) {
-                anim.SetBool("isJumping", false);
-            }
         }
 
         if (Input.GetKeyDown(KeyCode.Space) && extraJumps > 0) {
@@ -128,7 +125,6 @@ public class PlayerController : MonoBehaviour
                 extraJumps--;
             }
             isJumping = true;
-            anim.SetBool("isJumping", true);
             jumpTimeCounter = jumpTime;
             if (isSlidingOnWall) {
                 isWallJumping = true;

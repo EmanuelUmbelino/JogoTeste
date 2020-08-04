@@ -9980,7 +9980,7 @@ MonoBehaviour:
   whatIsGround:
     serializedVersion: 2
     m_Bits: 256
-  jumpTime: 0.2
+  jumpTime: 0.3
   extraJumpsValue: 1
   rightCheck: {fileID: 1981254984}
   leftCheck: {fileID: 1521714486}
